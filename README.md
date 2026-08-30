@@ -97,8 +97,8 @@ a `file://` page. The model is 66 MB, so the first load takes a moment.
 
 Everything you would change lives in **`annotations.js`**:
 
-- `DEMONBASE_BASE` — base URL that entity links are appended to
-- `HOTSPOTS[]` — one entry per marker: `id`, `title`, `spell` (transliteration), `translation`, `entities[]`
+- `DEMONBASE_BASE`, the base URL that entity links are appended to
+- `HOTSPOTS[]`, one entry per marker: `id`, `title`, `spell` (transliteration), `translation`, `entities[]`
 
 Each entity carries `name`, and where a database match exists, `dbId`, `dbTranslation`, `dbSource`,
 `dbKind`, `dbGender` and `dbNameIndicates`.
