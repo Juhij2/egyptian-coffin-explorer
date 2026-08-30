@@ -4,7 +4,9 @@ A computational layer over a 3D coffin scan. Click a marker on the coffin to ope
 spell written there, see the divine and demonic entities a named-entity recognition model extracted
 straight from the transliteration, and read each entity's classification from DemonBase.
 
-![The coffin explorer, showing coffin AB118 with ten labelled spell markers](screenshot.jpg)
+**[Open the live demo](https://juhij2.github.io/egyptian-coffin-explorer/)**
+
+[![The coffin explorer, showing coffin AB118 with ten labelled spell markers](screenshot.jpg)](https://juhij2.github.io/egyptian-coffin-explorer/)
 
 ---
 
@@ -84,6 +86,13 @@ The classification data is shown inline instead, read from a DemonBase export.
 
 ## Run it
 
+The hosted version needs nothing installed:
+<https://juhij2.github.io/egyptian-coffin-explorer/>
+
+The coffin model is 66 MB, so give the first load a few seconds before anything appears.
+
+To run it locally instead:
+
 ```
 git clone https://github.com/Juhij2/egyptian-coffin-explorer.git
 cd egyptian-coffin-explorer
@@ -91,7 +100,7 @@ python3 -m http.server 8000
 ```
 
 Then open <http://localhost:8000>. A local server is required, since browsers block loading a `.glb` from
-a `file://` page. The model is 66 MB, so the first load takes a moment.
+a `file://` page.
 
 ## Editing the content
 
