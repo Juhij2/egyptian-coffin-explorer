@@ -1,4 +1,4 @@
-# Coffin Viewer — 3D + NLP annotations (MVP)
+# Coffin Viewer: 3D + NLP annotations (MVP)
 
 Interactive 3D coffin. Rotate/zoom, click gold ◆ markers to open a side panel
 with the spell text + NER-extracted entities linked to DemonBase.
