@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ancient Egyptian Coffin Explorer</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;1,300;1,400&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --lapis: #1a2744;
+    --lapis-dark: #0f1829;
+    --gold: #c9a84c;
+    --gold-light: #e8c96a;
+    --turquoise: #2a7c7c;
+    --papyrus: #f5edd6;
+    --ink: #1c1810;
+    --dust: #b8a882;
+    --deity-color: #2a7c7c;
+  }
+
+  body {
+    background: var(--lapis-dark);
+    font-family: 'Crimson Pro', Georgia, serif;
+    color: var(--papyrus);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Header */
+  header {
+    padding: 12px 24px;
+    background: rgba(0,0,0,0.4);
+    border-bottom: 1px solid rgba(201,168,76,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+  .header-left h1 {
+    font-family: 'Cinzel', serif;
+    font-size: 16px;
+    color: var(--gold);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .header-left p {
+    font-size: 12px;
+    color: var(--dust);
+    font-style: italic;
+    margin-top: 2px;
+  }
+  .header-left p b { color: var(--gold); font-style: normal; font-weight: 600; letter-spacing: 0.03em; }
+
+  /* Intro title card — pops up on load, then fades to reveal the coffin */
+  #intro {
+    position: absolute; inset: 0; z-index: 60; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center; gap: 8px; padding: 24px;
+    background: radial-gradient(ellipse at center, rgba(15,24,41,0.7), rgba(15,24,41,0.95));
+    opacity: 0; visibility: hidden; transition: opacity 0.9s ease; pointer-events: none;
+  }
+  #intro.show { opacity: 1; visibility: visible; }
+  #intro .glyph { font-size: 38px; margin-bottom: 6px; }
+  #intro .ttl { font-family: 'Cinzel', serif; font-size: clamp(20px, 3.2vw, 30px);
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold); }
+  #intro .sub { font-size: 13px; color: var(--dust); font-style: italic; max-width: 42ch; }
+  #intro .by { margin-top: 18px; }
+  #intro .by .k { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.28em;
+    text-transform: uppercase; color: var(--dust); opacity: 0.7; }
+  #intro .by .name { font-family: 'Cinzel', serif; font-size: 20px; letter-spacing: 0.06em;
+    color: var(--papyrus); margin-top: 5px; }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--dust);
+    letter-spacing: 0.1em;
+    text-align: right;
+  }
+  .header-right .model-badge { opacity: 0.7; line-height: 1.5; }
+  .dev-ctl { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+             padding: 5px 9px; border: 1px solid rgba(201,168,76,0.25); border-radius: 6px; }
+  .dev-ctl:hover { border-color: rgba(201,168,76,0.5); }
+  .dev-ctl button { background: none; border: none; color: var(--dust); font-family: inherit;
+                    font-size: 10px; letter-spacing: 0.1em; cursor: pointer; }
+
+  /* Main layout */
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* 3D Viewer */
+  #viewer { flex: 1; position: relative; cursor: grab; }
+  #viewer:active { cursor: grabbing; }
+  #canvas-container { width: 100%; height: 100%; }
+
+  /* Loading overlay */
+  #loading {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; background: var(--lapis-dark); z-index: 100;
+  }
+  .loading-glyph { font-size: 48px; margin-bottom: 16px; animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 0.4; transform: scale(0.95); } 50% { opacity: 1; transform: scale(1.05); } }
+  .loading-text { font-family: 'Cinzel', serif; font-size: 12px; letter-spacing: 0.3em;
+                  text-transform: uppercase; color: var(--gold); margin-bottom: 8px; }
+  .loading-sub { font-size: 12px; color: var(--dust); font-style: italic; }
+  @media (prefers-reduced-motion: reduce) { .loading-glyph { animation: none; } .hotspot::after { animation: none; } }
+
+  /* Hotspot dots (positioned by JS from real 3D coords) */
+  .hotspot {
+    position: absolute; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--gold); border: 2px solid white; cursor: pointer;
+    transform: translate(-50%, -50%); transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 0 12px rgba(201,168,76,0.6); z-index: 20;
+  }
+  .hotspot::after {
+    content: ''; position: absolute; inset: -4px; border-radius: 50%;
+    border: 2px solid rgba(201,168,76,0.4); animation: ripple 2s ease-out infinite;
+  }
+  @keyframes ripple { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(2.2); opacity: 0; } }
+  .hotspot:hover { transform: translate(-50%, -50%) scale(1.3); box-shadow: 0 0 20px rgba(201,168,76,0.9); }
+  .hotspot.active { background: var(--gold-light); transform: translate(-50%, -50%) scale(1.2); }
+  .hotspot-label {
+    position: absolute; left: 50%; top: -8px; transform: translate(-50%, -100%);
+    white-space: nowrap; font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.05em; color: var(--papyrus); background: rgba(15,24,41,0.85);
+    border: 1px solid rgba(201,168,76,0.4); border-radius: 5px; padding: 2px 7px; pointer-events: none;
+  }
+
+  .controls-hint {
+    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    color: rgba(184,168,130,0.5); letter-spacing: 0.1em; pointer-events: none;
+  }
+  #coords {
+    position: absolute; bottom: 16px; left: 16px; font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--gold); background: rgba(0,0,0,0.65);
+    padding: 6px 10px; border-radius: 6px; display: none;
+  }
+
+  /* Side panel — floats over the 3D so the coffin always keeps full width */
+  #panel {
+    position: absolute; top: 0; right: 0; height: 100%;
+    width: min(420px, 92vw); background: rgba(15,24,41,0.96);
+    border-left: 1px solid rgba(201,168,76,0.2); display: flex; flex-direction: column;
+    overflow: hidden; z-index: 30; box-shadow: -14px 0 44px rgba(0,0,0,0.45);
+    transform: translateX(0); transition: transform 0.3s ease;
+  }
+  #panel.closed { transform: translateX(100%); }
+  .panel-close { position: absolute; top: 12px; right: 14px; z-index: 2;
+    background: none; border: none; color: var(--dust); font-size: 22px; line-height: 1; cursor: pointer; }
+  .panel-close:hover { color: var(--papyrus); }
+  #reopen { position: absolute; top: 16px; right: 16px; z-index: 25; display: none;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--gold); background: rgba(15,24,41,0.9);
+    border: 1px solid rgba(201,168,76,0.4); border-radius: 6px; padding: 8px 12px; cursor: pointer; }
+  #reopen:hover { background: rgba(201,168,76,0.15); }
+  .panel-header { padding: 20px 24px 16px; border-bottom: 1px solid rgba(201,168,76,0.15); flex-shrink: 0; }
+  .panel-eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 0.25em;
+                   text-transform: uppercase; color: var(--gold); opacity: 0.7; margin-bottom: 6px; }
+  .panel-title { font-family: 'Cinzel', serif; font-size: 18px; color: var(--papyrus);
+                 letter-spacing: 0.04em; line-height: 1.3; }
+  .panel-subtitle { font-size: 13px; color: var(--dust); font-style: italic; margin-top: 5px; }
+
+  .coffin-info { padding: 14px 24px 18px; border-bottom: 1px solid rgba(201,168,76,0.1); flex-shrink: 0; }
+  .coffin-info-row { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 0; }
+  .coffin-info-key { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 0.1em;
+                     text-transform: uppercase; color: var(--dust); opacity: 0.6; }
+  .coffin-info-val { color: rgba(245,237,214,0.75); text-align: right; max-width: 62%; font-size: 12px; }
+
+  .panel-body { flex: 1; overflow-y: auto; padding: 20px 24px;
+                scrollbar-width: thin; scrollbar-color: rgba(201,168,76,0.3) transparent; }
+  .panel-body::-webkit-scrollbar { width: 4px; }
+  .panel-body::-webkit-scrollbar-track { background: transparent; }
+  .panel-body::-webkit-scrollbar-thumb { background: rgba(201,168,76,0.3); border-radius: 2px; }
+
+  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center;
+                 height: 100%; text-align: center; padding: 32px; opacity: 0.5; }
+  .empty-glyph { font-size: 40px; margin-bottom: 16px; }
+  .empty-text { font-family: 'Cinzel', serif; font-size: 11px; letter-spacing: 0.2em;
+                text-transform: uppercase; color: var(--gold); margin-bottom: 8px; }
+  .empty-sub { font-size: 13px; color: var(--dust); font-style: italic; line-height: 1.6; }
+
+  .section-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.2em;
+                   text-transform: uppercase; color: var(--gold); opacity: 0.75; margin: 22px 0 9px; }
+  .section-label:first-child { margin-top: 0; }
+  .transliteration-block {
+    background: rgba(255,255,255,0.04); border-left: 3px solid var(--gold); padding: 14px 16px;
+    border-radius: 0 4px 4px 0; font-size: 19px; line-height: 1.9; color: rgba(245,237,214,0.92);
+  }
+  /* inline NER highlighting inside the transliteration */
+  .ent-hl { border-radius: 3px; padding: 1px 3px; text-decoration: none; }
+  .ent-linked { background: rgba(42,124,124,0.30); color: #bdeaea; cursor: pointer;
+                border-bottom: 2px solid var(--turquoise); }
+  .ent-linked:hover { background: rgba(42,124,124,0.55); color: #eafcfc; }
+  .ent-unlinked { color: #f2e7c4; border-bottom: 1.5px dashed rgba(201,168,76,0.7); cursor: help; }
+  .hl-legend { display: flex; gap: 16px; margin-top: 10px; font-size: 11px; color: var(--dust); }
+  .hl-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .hl-legend i { width: 22px; height: 0; display: inline-block; }
+  .hl-legend i.lk { border-bottom: 2px solid var(--turquoise); }
+  .hl-legend i.ul { border-bottom: 1.5px dashed rgba(201,168,76,0.7); }
+
+  .prov { font-family: 'JetBrains Mono', monospace; font-size: 8.5px; letter-spacing: 0.1em;
+    text-transform: uppercase; background: rgba(201,168,76,0.16); color: var(--gold);
+    border-radius: 3px; padding: 2px 5px; }
+
+  /* rich entity cards with real DemonBase classification chips */
+  .entities-list { display: flex; flex-direction: column; gap: 9px; }
+  .entity-row { display: flex; flex-direction: column; gap: 7px; padding: 11px 13px;
+                border-radius: 7px; border: 1px solid; }
+  .entity-row.linked { background: rgba(42,124,124,0.12); border-color: rgba(42,124,124,0.35); }
+  .entity-row.nomatch { background: rgba(184,168,130,0.05); border-color: rgba(184,168,130,0.22); border-style: dashed; }
+  .entity-row .top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .entity-row .entity-name { font-size: 16px; font-style: italic; color: var(--papyrus); }
+  .entity-row .entity-en { font-size: 15px; color: #9fdede; }
+  .entity-row.nomatch .muted { font-size: 12px; color: var(--dust); font-style: italic; }
+  .db-link { margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 11px;
+             color: var(--gold); text-decoration: none; white-space: nowrap; }
+  .db-link:hover { text-decoration: underline; }
+  .attrs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .attr-chip { font-size: 12px; padding: 3px 9px; border-radius: 11px; background: rgba(42,124,124,0.16);
+               color: #a8e0e0; border: 1px solid rgba(42,124,124,0.32); }
+  .attr-chip b { color: var(--dust); font-weight: 400; opacity: 0.85; font-size: 9px; text-transform: uppercase;
+                 letter-spacing: 0.06em; margin-right: 5px; font-family: 'JetBrains Mono', monospace; }
+  .description-text { font-size: 15.5px; line-height: 1.8; color: rgba(245,237,214,0.8); font-style: italic; }
+
+  .entities-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .entity-tag { display: inline-flex; align-items: center; gap: 7px; padding: 7px 13px; border-radius: 3px;
+                font-size: 15.5px; cursor: pointer; transition: transform 0.15s, background 0.15s;
+                text-decoration: none; border: 1px solid; }
+  .entity-tag.deity { background: rgba(42,124,124,0.15); border-color: rgba(42,124,124,0.4); color: #6dcfcf; }
+  .entity-tag.deity:hover { background: rgba(42,124,124,0.3); border-color: var(--turquoise); transform: translateY(-1px); }
+  .entity-tag.nomatch { background: rgba(184,168,130,0.08); border-color: rgba(184,168,130,0.25);
+                        color: var(--dust); cursor: default; border-style: dashed; }
+  .entity-name { font-style: italic; }
+  .entity-en { opacity: 0.85; }
+  .entity-label-badge { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.08em;
+                        opacity: 0.6; text-transform: uppercase; }
+
+  .note-block { background: rgba(201,168,76,0.06); border: 1px solid rgba(201,168,76,0.15); border-radius: 4px;
+                padding: 13px 15px; font-size: 12.5px; line-height: 1.65; color: rgba(245,237,214,0.58); margin-top: 22px; }
+  .note-block strong { color: var(--gold); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>𓂀 Ancient Egyptian Coffin Explorer</h1>
+    <p>A computational layer over a 3D coffin scan · <b>Juhi Jadhav</b></p>
+  </div>
+  <div class="header-right">
+    <div class="model-badge">NER Model · 95.6% F1<br>DEITY · DemonBase concordance</div>
+    <label class="dev-ctl"><input type="checkbox" id="devToggle"> <button type="button">Dev mode</button></label>
+  </div>
+</header>
+
+<div class="main">
+  <!-- 3D VIEWER -->
+  <div id="viewer">
+    <div id="loading">
+      <div class="loading-glyph">𓄿</div>
+      <div class="loading-text">Loading Coffin</div>
+      <div class="loading-sub">AB118 · wooden anthropoid coffin</div>
+    </div>
+    <div id="canvas-container"></div>
+    <div id="intro">
+      <div class="glyph">𓋹</div>
+      <div class="ttl">Ancient Egyptian Coffin Explorer</div>
+      <div class="sub">Coffin Texts · named-entity recognition · the DemonBase concordance</div>
+      <div class="by"><div class="k">Built by</div><div class="name">Juhi Jadhav</div></div>
+    </div>
+    <div class="controls-hint">Drag to rotate · Scroll to zoom · Right-click to pan · click a ◉ point</div>
+    <div id="coords"></div>
+    <button id="reopen" type="button">☰ Details</button>
+  </div>
+
+  <!-- SIDE PANEL -->
+  <div id="panel">
+    <button class="panel-close" id="panelClose" type="button" title="Close panel">×</button>
+    <div class="panel-header">
+      <div class="panel-eyebrow">Coffin</div>
+      <div class="panel-title">AB118</div>
+      <div class="panel-subtitle">Click a glowing point to explore a spell</div>
+    </div>
+
+    <div class="coffin-info">
+      <div class="coffin-info-row"><span class="coffin-info-key">Type</span><span class="coffin-info-val">Wooden anthropoid coffin</span></div>
+      <div class="coffin-info-row"><span class="coffin-info-key">Model</span><span class="coffin-info-val">complete_coffin_ab118 (3D scan)</span></div>
+      <div class="coffin-info-row"><span class="coffin-info-key">Texts</span><span class="coffin-info-val">Coffin Texts (real, via TLA)</span></div>
+      <div class="coffin-info-row"><span class="coffin-info-key">Entities</span><span class="coffin-info-val">NER model → DemonBase</span></div>
+    </div>
+
+    <div class="panel-body" id="panel-body">
+      <div class="empty-state" id="empty-state">
+        <div class="empty-glyph">𓇳</div>
+        <div class="empty-text">Select a Spell</div>
+        <div class="empty-sub">Click one of the glowing points on the coffin to see its spell text and the divine entities the model extracted</div>
+      </div>
+      <div id="spell-content" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<!-- real data: window.DEMONBASE_BASE + window.HOTSPOTS -->
+<script src="annotations.js"></script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const container = document.getElementById('canvas-container');
+const viewer = document.getElementById('viewer');
+const devToggle = document.getElementById('devToggle');
+const coordsEl = document.getElementById('coords');
+const panelEl = document.getElementById('panel');
+const reopenBtn = document.getElementById('reopen');
+
+document.getElementById('panelClose').addEventListener('click', () => {
+  panelEl.classList.add('closed');
+  reopenBtn.style.display = 'block';
+});
+reopenBtn.addEventListener('click', () => {
+  panelEl.classList.remove('closed');
+  reopenBtn.style.display = 'none';
+});
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(container.clientWidth, container.clientHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0f1829);
+
+const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 100000);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+
+// Lighting (warm key + cool fill + gold rim)
+scene.add(new THREE.AmbientLight(0xfff8e7, 0.6));
+scene.add(new THREE.HemisphereLight(0xffffff, 0x2a2440, 0.35));
+const keyLight = new THREE.DirectionalLight(0xfff0cc, 1.5); keyLight.position.set(2, 3, 2); scene.add(keyLight);
+const fillLight = new THREE.DirectionalLight(0xc8e0ff, 0.4); fillLight.position.set(-2, 1, -1); scene.add(fillLight);
+const rimLight = new THREE.DirectionalLight(0xc9a84c, 0.35); rimLight.position.set(0, -2, -3); scene.add(rimLight);
+
+let modelRoot = null;
+let homeCam = new THREE.Vector3(), homeTarget = new THREE.Vector3();
+
+function frameModel(obj){
+  const box = new THREE.Box3().setFromObject(obj);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  window.__box = box; window.__size = size; window.__center = center;
+  window.__modelSize = size.length();
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const fov = camera.fov * Math.PI / 180;
+  let dist = (maxDim / 2) / Math.tan(fov / 2);
+  dist *= 1.35;
+  controls.target.copy(center);
+  // open on a 3/4 view looking down onto the lid (long axis Z runs across the view)
+  const dir = new THREE.Vector3(0.30, 0.82, 0.48).normalize();
+  camera.position.copy(center).add(dir.multiplyScalar(dist));
+  camera.near = dist / 100;
+  camera.far = dist * 100;
+  camera.updateProjectionMatrix();
+  controls.minDistance = dist * 0.2;
+  controls.maxDistance = dist * 4;
+  controls.update();
+  homeCam.copy(camera.position);
+  homeTarget.copy(center);
+}
+
+// --- load the CONVERTED model (metallic-roughness) so it is not grey ---
+const loader = new GLTFLoader();
+loader.load('coffin_mr.glb',
+  (gltf) => {
+    modelRoot = gltf.scene;
+    scene.add(modelRoot);
+    frameModel(modelRoot);
+    document.getElementById('loading').style.display = 'none';
+    buildHotspots();
+    // title card: pop up name, then fade to reveal the coffin
+    const intro = document.getElementById('intro');
+    intro.classList.add('show');
+    setTimeout(() => intro.classList.remove('show'), 4200);
+  },
+  (p) => {
+    if (p.total) {
+      const pct = Math.round((p.loaded / p.total) * 100);
+      const t = document.querySelector('.loading-text');
+      if (t) t.textContent = `Loading Coffin · ${pct}%`;
+    }
+  },
+  (err) => {
+    console.error('Model load error:', err);
+    document.querySelector('.loading-text').textContent = 'Could not load model';
+    document.querySelector('.loading-sub').textContent = 'Make sure coffin_mr.glb is in this folder';
+  }
+);
+
+// --- hotspots: HTML dots driven by real 3D positions ---
+const raycaster = new THREE.Raycaster();
+const hotspots = [];
+function buildHotspots(){
+  const box = window.__box, size = window.__size, center = window.__center;
+  const list = window.HOTSPOTS || [];
+  const N = list.length;
+  // spread markers evenly along the coffin's long axis (Z) and snap each onto the lid surface
+  const zTop = box.max.z - size.z * 0.07;   // head end
+  const zBot = box.min.z + size.z * 0.07;   // foot end
+  const yAbove = box.max.y + size.y;        // ray origin, high above the lid
+  const down = new THREE.Vector3(0, -1, 0);
+  list.forEach((h, i) => {
+    const t = N > 1 ? i / (N - 1) : 0.5;
+    const z = zTop + (zBot - zTop) * t;
+    const x = center.x;
+    const pos = new THREE.Vector3(x, box.max.y, z);            // fallback if ray misses
+    raycaster.set(new THREE.Vector3(x, yAbove, z), down);       // drop straight down onto the lid
+    const hit = raycaster.intersectObject(modelRoot, true)[0];
+    if (hit) pos.copy(hit.point).add(new THREE.Vector3(0, size.y * 0.015, 0));
+
+    const dot = document.createElement('div');
+    dot.className = 'hotspot';
+    const lab = document.createElement('div');
+    lab.className = 'hotspot-label';
+    lab.textContent = h.title.replace(/^Spell\s+/, '').split('(')[0].trim();  // e.g. "CT594"
+    dot.appendChild(lab);
+    dot.addEventListener('click', (e) => { e.stopPropagation(); showSpell(h, dot); });
+    viewer.appendChild(dot);
+    hotspots.push({ h, dot, pos });
+  });
+}
+
+const _v = new THREE.Vector3();
+let _lastOcc = 0;
+function updateHotspots(){
+  if (!hotspots.length) return;
+  const now = performance.now();
+  const doOcc = now - _lastOcc > 120;
+  if (doOcc) _lastOcc = now;
+  const W = container.clientWidth, H = container.clientHeight;
+  hotspots.forEach((o) => {
+    _v.copy(o.pos).project(camera);
+    let show = _v.z < 1 && _v.x > -1.1 && _v.x < 1.1 && _v.y > -1.1 && _v.y < 1.1;
+    if (show && doOcc && modelRoot) {
+      const dir = o.pos.clone().sub(camera.position);
+      const dist = dir.length();
+      raycaster.set(camera.position, dir.normalize());
+      const hit = raycaster.intersectObject(modelRoot, true)[0];
+      o.occluded = !!(hit && hit.distance < dist - 8);
+    }
+    if (o.occluded) show = false;
+    o.dot.style.display = show ? 'block' : 'none';
+    if (show) {
+      o.dot.style.left = ((_v.x * 0.5 + 0.5) * W) + 'px';
+      o.dot.style.top  = ((-_v.y * 0.5 + 0.5) * H) + 'px';
+    }
+  });
+}
+
+// --- panel ---
+// normalize a transliteration token so entity names match spell tokens despite dots/brackets/hyphens
+function normTok(s){ return s.replace(/[.\[\](){}?·’]/g, '').replace(/-/g, '').toLowerCase(); }
+function esc(s){ return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+// render the transliteration with the model's tagged tokens highlighted inline
+function highlightSpell(spell, ents, base){
+  const map = {};
+  ents.forEach(e => { const k = normTok(e.name); if (k && !(k in map)) map[k] = e; });
+  return spell.split(/(\s+)/).map(tok => {
+    if (!tok || /^\s+$/.test(tok)) return tok;
+    const e = map[normTok(tok)];
+    if (!e) return esc(tok);
+    if (e.dbId != null) {
+      const tip = `${e.name}${e.dbTranslation ? ' → ' + e.dbTranslation : ''} · DemonBase #${e.dbId}`;
+      return `<a class="ent-hl ent-linked" href="${base}?db_id=${e.dbId}" target="_blank" rel="noopener" title="${esc(tip)}">${esc(tok)}</a>`;
+    }
+    return `<span class="ent-hl ent-unlinked" title="${esc(e.name)} — tagged by the NER model, no DemonBase match">${esc(tok)}</span>`;
+  }).join('');
+}
+
+let activeDot = null;
+function showSpell(h, dot){
+  if (activeDot) activeDot.classList.remove('active');
+  if (dot) { dot.classList.add('active'); activeDot = dot; }
+
+  panelEl.classList.remove('closed');
+  reopenBtn.style.display = 'none';
+
+  const ref = (h.title.match(/\(([^)]+)\)/) || [])[1] || 'Coffin Text';
+  const name = h.title.replace(/\s*\([^)]*\)/, '').trim();
+  document.querySelector('.panel-eyebrow').textContent = ref;
+  document.querySelector('.panel-title').textContent = name;
+
+  const ents = h.entities || [];
+  const linked = ents.filter(e => e.dbId != null);
+  document.querySelector('.panel-subtitle').textContent =
+    `${ents.length} entit${ents.length === 1 ? 'y' : 'ies'} tagged by the model · ${linked.length} in DemonBase`;
+
+  document.getElementById('empty-state').style.display = 'none';
+  const content = document.getElementById('spell-content');
+  content.style.display = 'block';
+
+  const base = window.DEMONBASE_BASE || '';
+  const tags = ents.map(e => {
+    if (e.dbId != null) {
+      const chips = [];
+      if (e.dbKind) chips.push(`<span class="attr-chip">${e.dbKind}</span>`);
+      if (e.dbGender) chips.push(`<span class="attr-chip">${e.dbGender}</span>`);
+      if (e.dbFunction) chips.push(`<span class="attr-chip"><b>function</b>${e.dbFunction}</span>`);
+      if (e.dbNameIndicates) chips.push(`<span class="attr-chip"><b>name</b>${e.dbNameIndicates}</span>`);
+      return `<div class="entity-row linked">
+        <div class="top">
+          <span class="prov">NER</span>
+          <span class="entity-name">${e.name}</span>
+          ${e.dbTranslation ? `<span class="entity-en">${e.dbTranslation}</span>` : ''}
+          <a class="db-link" href="${base}?db_id=${e.dbId}" target="_blank" rel="noopener">DemonBase #${e.dbId} ↗</a>
+        </div>
+        ${chips.length ? `<div class="attrs">${chips.join('')}</div>` : ''}
+      </div>`;
+    }
+    return `<div class="entity-row nomatch">
+        <div class="top"><span class="prov">NER</span>
+          <span class="entity-name">${e.name}</span>
+          <span class="muted">no DemonBase match</span></div>
+      </div>`;
+  }).join('');
+
+  content.innerHTML = `
+    <div class="section-label">Translation</div>
+    <p class="description-text">${h.translation || ''}</p>
+    <div class="section-label">Transliteration · model output</div>
+    <div class="transliteration-block">${highlightSpell(h.spell || '', ents, base)}</div>
+    <div class="hl-legend"><span><i class="lk"></i> linked to DemonBase</span><span><i class="ul"></i> tagged, no match</span></div>
+    <div class="section-label">Entities tagged (${ents.length})</div>
+    <div class="entities-list">${tags}</div>
+    <div class="note-block"><strong>How this was built:</strong> real Coffin Text lines from the TLA corpus,
+    tagged by a character-level BiLSTM-CRF NER model, then linked by record id into the DemonThings / DemonBase
+    concordance. The turquoise chips are that record's own DemonBase classification (kind, gender, function,
+    what the name indicates).</div>
+  `;
+}
+
+// --- dev mode: click the surface to copy 3D coords ---
+renderer.domElement.addEventListener('click', (e) => {
+  if (!devToggle.checked || !modelRoot) return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  const pointer = new THREE.Vector2(
+    ((e.clientX - rect.left) / rect.width) * 2 - 1,
+    -((e.clientY - rect.top) / rect.height) * 2 + 1
+  );
+  raycaster.setFromCamera(pointer, camera);
+  const hit = raycaster.intersectObject(modelRoot, true)[0];
+  if (hit) {
+    const p = hit.point;
+    const s = `[${p.x.toFixed(0)}, ${p.y.toFixed(0)}, ${p.z.toFixed(0)}]`;
+    coordsEl.textContent = 'position: ' + s + '  (copied)';
+    coordsEl.style.display = 'block';
+    if (navigator.clipboard) navigator.clipboard.writeText(s).catch(() => {});
+  }
+});
+devToggle.addEventListener('change', () => {
+  if (!devToggle.checked) coordsEl.style.display = 'none';
+});
+
+// --- animate + resize ---
+function animate(){
+  requestAnimationFrame(animate);
+  controls.update();
+  updateHotspots();
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  const w = container.clientWidth, h = container.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+});
+</script>
+
+</body>
+</html>

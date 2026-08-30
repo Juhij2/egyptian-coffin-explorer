@@ -1,0 +1,4 @@
+# Unused duplicate of the model; index.html loads coffin_mr.glb only
+coffin.glb
+
+.DS_Store
